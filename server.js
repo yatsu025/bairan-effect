@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const { execSync, spawn } = require('child_process');
 const fs = require('fs');
@@ -5,11 +6,23 @@ const path = require('path');
 const https = require('https');
 const http = require('http');
 const FormData = require('form-data');
+const multer = require('multer');
 
 const app = express();
 app.use(express.json({ limit: '100mb' }));
+app.use(express.static(path.join(__dirname, 'public')));
 
-const FFMPEG = 'ffmpeg';
+const uploadStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const dir = path.join(__dirname, 'temp-uploads');
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    cb(null, dir);
+  },
+  filename: (req, file, cb) => cb(null, `${Date.now()}-${file.originalname}`)
+});
+const upload = multer({ storage: uploadStorage });
+
+const FFMPEG = require('ffmpeg-static');
 const TEMP_BASE_DIR = 'temp-requests';
 
 if (!fs.existsSync(TEMP_BASE_DIR)) fs.mkdirSync(TEMP_BASE_DIR, { recursive: true });
@@ -45,43 +58,24 @@ function generateRequestId() {
 }
 
 async function uploadToStoreFile(filePath, userId) {
-  const url = process.env.PORT;
-  
-  return new Promise((resolve, reject) => {
-    const form = new FormData();
-    form.append('file', fs.createReadStream(filePath));
-    form.append('userid', userId);
-    
-    const parsedUrl = new URL(url);
-    const protocol = parsedUrl.protocol === 'https:' ? https : http;
-    
-    const options = {
-      hostname: parsedUrl.hostname,
-      port: parsedUrl.port || (parsedUrl.protocol === 'https:' ? 443 : 80),
-      path: parsedUrl.pathname,
-      method: 'POST',
-      headers: form.getHeaders()
-    };
-    
-    const req = protocol.request(options, (res) => {
-      let data = '';
-      res.on('data', chunk => data += chunk);
-      res.on('end', () => {
-        if (res.statusCode >= 200 && res.statusCode < 300) {
-          try {
-            resolve(JSON.parse(data));
-          } catch (e) {
-            reject(new Error(`Failed to parse response: ${data}`));
-          }
-        } else {
-          reject(new Error(`Upload failed with status ${res.statusCode}: ${data}`));
-        }
-      });
-    });
-    
-    req.on('error', reject);
-    form.pipe(req);
-  });
+  const storageDir = process.env.STORAGE_URL;
+
+  if (!fs.existsSync(storageDir)) {
+    fs.mkdirSync(storageDir, { recursive: true });
+  }
+
+  const filename = `${userId}_${Date.now()}_final-video.mp4`;
+  const destPath = path.join(storageDir, filename);
+
+  fs.copyFileSync(filePath, destPath);
+  console.log(`✅ Video saved locally: ${destPath}`);
+
+  return {
+    fileUrl: destPath,
+    fileId: filename,
+    originalFilename: 'final-video.mp4',
+    fileSize: fs.statSync(destPath).size
+  };
 }
 
 function extractZip(zipPath, destDir) {
@@ -159,13 +153,35 @@ async function processVideo(videoPath, isUrl = false, zipPath = null, zipUrl = f
         });
       });
     } else if (imageUrls && imageUrls.length > 0) {
-      console.log(`Downloading ${imageUrls.length} images...`);
+      console.log(`Processing ${imageUrls.length} images...`);
       for (let i = 0; i < imageUrls.length; i++) {
         const imageUrl = imageUrls[i];
-        const ext = path.extname(new URL(imageUrl).pathname).split('?')[0] || '.jpg';
+        const isImgUrl = imageUrl.startsWith('http://') || imageUrl.startsWith('https://');
+        
+        let ext;
+        if (isImgUrl) {
+          try {
+            ext = path.extname(new URL(imageUrl).pathname).split('?')[0] || '.jpg';
+          } catch (e) {
+            ext = '.jpg';
+          }
+        } else {
+          ext = path.extname(imageUrl) || '.jpg';
+        }
+
         const destPath = path.join(imagesDir, `image_${String(i).padStart(3, '0')}${ext}`);
-        console.log(`Downloading image ${i + 1}/${imageUrls.length}: ${imageUrl}`);
-        await downloadFile(imageUrl, destPath);
+        
+        if (isImgUrl) {
+          console.log(`Downloading image ${i + 1}/${imageUrls.length}: ${imageUrl}`);
+          await downloadFile(imageUrl, destPath);
+        } else {
+          console.log(`Copying local image ${i + 1}/${imageUrls.length}: ${imageUrl}`);
+          if (fs.existsSync(imageUrl)) {
+            fs.copyFileSync(imageUrl, destPath);
+          } else {
+            console.warn(`Local image not found: ${imageUrl}`);
+          }
+        }
       }
       
       console.log('Creating slideshow from images...');
@@ -205,7 +221,7 @@ async function processVideo(videoPath, isUrl = false, zipPath = null, zipUrl = f
     // Convert video to MP4 format (handles MOV and other formats)
     console.log(`Converting to MP4: ${videoPath}`);
     await new Promise((resolve, reject) => {
-      const proc = spawn('ffmpeg', [
+      const proc = spawn(FFMPEG, [
         '-i', videoPath,
         '-c:v', 'libx264',
         '-c:a', 'aac',
@@ -256,6 +272,14 @@ async function processVideo(videoPath, isUrl = false, zipPath = null, zipUrl = f
     throw error;
   }
 }
+
+app.post('/upload-video', upload.single('video'), (req, res) => {
+  res.json({ path: req.file.path });
+});
+
+app.post('/upload-images', upload.array('images'), (req, res) => {
+  res.json({ paths: req.files.map(f => f.path) });
+});
 
 app.post('/process', async (req, res) => {
   try {

@@ -1,33 +1,24 @@
-# Video Template Automation
+# Video Template Automation (Windows Compatible)
 
 Author: Yash Srivastava
 
-Create dynamic videos with a freeze frame transition, background removal, and slideshow effect.
-
-## Project Structure
-
-```
-bairantool/
-├── middle-images/          # Images for slideshow
-├── output/                 # Generated output files
-├── rosh-freeze.MP4         # Main source video
-├── middle-video.mp4        # (Optional) Middle video source
-├── ffmpeg                  # FFmpeg binary (macOS)
-├── ffprobe                 # FFprobe binary (macOS)
-├── step1-extract-last-frame.js
-├── step2-remove-background.js
-├── step3-add-borders.js
-├── step4-compose-video.js
-├── create-middle-slideshow.js
-├── server.js               # API Server
-└── package.json
-```
+Create dynamic videos with a freeze frame transition, background removal, and slideshow effect. This version has been optimized for Windows and uses automatic FFmpeg management.
 
 ## Setup
 
-```bash
-npm install
-```
+1. **Install Dependencies**:
+   ```bash
+   npm install
+   ```
+
+2. **Environment Configuration**:
+   Create a `.env` file in the root directory:
+   ```env
+   FAL_KEY=your_fal_ai_key_here
+   STORAGE_URL=./output
+   PORT=3002
+   ```
+   *Note: Get your FAL_KEY from [fal.ai](https://fal.ai/). Ensure you have a positive balance.*
 
 ## Usage
 
@@ -38,180 +29,33 @@ Start the server:
 npm start
 ```
 
-Server runs on `http://localhost:3001`
+The server will run on `http://localhost:3002` (or the port specified in `.env`).
 
-#### Process Video
+#### Web Interface
+Open `http://localhost:3002` in your browser to use the graphical interface for uploading videos and images.
 
-```bash
-curl -X POST http://localhost:3001/process \
-  -H "Content-Type: application/json" \
-  -d '{
-    "videoPath": "path/to/video.mp4",
-    "isUrl": false
-  }'
-```
-
-Or with a URL:
-```bash
-curl -X POST http://localhost:3001/process \
-  -H "Content-Type: application/json" \
-  -d '{
-    "videoPath": "https://example.com/video.mp4",
-    "isUrl": true
-  }'
-```
-
-With zip of images:
-```bash
-curl -X POST http://localhost:3001/process \
-  -H "Content-Type: application/json" \
-  -d '{
-    "videoPath": "path/to/video.mp4",
-    "isUrl": false,
-    "zipPath": "path/to/images.zip",
-    "zipUrl": false
-  }'
-```
-
-Or all URLs:
-```bash
-curl -X POST http://localhost:3001/process \
-  -H "Content-Type: application/json" \
-  -d '{
-    "videoPath": "https://example.com/video.mp4",
-    "isUrl": true,
-    "zipPath": "https://example.com/images.zip",
-    "zipUrl": true
-  }'
-```
-
-#### Response
-
-```json
-{
-  "success": true,
-  "outputPath": "output/final-video.mp4",
-  "outputUrl": "/download/final-video.mp4"
-}
-```
-
-#### Download Output
-
-```bash
-curl -O http://localhost:3001/download/final-video.mp4
-```
-
----
-
-### Local Usage
-
-### 1. Prepare Images (Optional)
-
-Place images in `middle-images/` folder. Supports JPG, PNG, HEIC.
-
-### 2. Create Slideshow (Optional)
-
-```bash
-npm run slideshow
-```
-
-Creates `output/middle-slideshow.mp4` - a looping slideshow from images (9s duration, 0.2s per image).
-
-### 3. Run Pipeline
-
-```bash
-npm run step1   # Extract last frame from video
-npm run step2   # Remove background from frame
-npm run step3   # Add borders to create sticker
-npm run step4   # Compose final video
-```
-
-Or run all at once:
-```bash
-npm run step1 && npm run step2 && npm run step3 && npm run step4
-```
-
-## Step Details
-
-| Step | Output | Description |
-|------|--------|-------------|
-| 1 | `output/last-frame.png` | Extracts the last frame from `rosh-freeze.MP4` |
-| 2 | `output/bg-removed.png` | Removes background using AI |
-| 3 | `output/bordered-image.png` | Adds white/black borders creating a sticker |
-| 4 | `output/final-video.mp4` | Composites everything with center-out curtain effect |
-
-## Configuration
-
-### Middle Video Source (step4)
-- If `output/middle-slideshow.mp4` exists → uses slideshow
-- Otherwise → uses `middle-video.mp4`
-
-### Slideshow Settings (create-middle-slideshow.js)
-- Duration: 9 seconds
-- Per-image duration: 0.2 seconds
-- Resolution: 1080x1920 (vertical)
-- Loops through images to fill duration
-
-## Requirements
-
-- macOS (uses `sips` for image conversion)
-- Node.js dependencies (installed via `npm install`)
-
-## API Server
-
-Start the API server:
-
-```bash
-npm start
-```
-
-Server runs on `http://localhost:3001`
-
-### Endpoints
+#### API Endpoints
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | `/process` | Process a video |
-| GET | `/download/:filename` | Download output file |
-| GET | `/status` | Check server status |
+| POST | `/process` | Process video and images |
+| POST | `/upload-video` | Upload a local video file |
+| POST | `/upload-images` | Upload multiple image files |
+| GET | `/download/:filename` | Download processed results |
 
-### Process Request
+## Windows Optimization Details
 
-```bash
-curl -X POST http://localhost:3001/process \
-  -H "Content-Type: application/json" \
-  -d '{
-    "videoPath": "path/to/video.mp4",
-    "isUrl": false,
-    "zipPath": "path/to/images.zip",
-    "zipUrl": false
-  }'
-```
+This project has been updated to work seamlessly on Windows:
+- **FFmpeg/FFprobe**: Automatically managed via `ffmpeg-static` and `ffprobe-static`. No manual installation or PATH setup required.
+- **Image Processing**: Uses `sharp` instead of `sips` or ImageMagick for better performance and cross-platform compatibility.
+- **Path Handling**: Fixed Windows backslash issues in FFmpeg commands.
 
-With URLs:
-```bash
-curl -X POST http://localhost:3001/process \
-  -H "Content-Type: application/json" \
-  -d '{
-    "videoPath": "https://example.com/video.mp4",
-    "isUrl": true,
-    "zipPath": "https://example.com/images.zip",
-    "zipUrl": true
-  }'
-```
+## Troubleshooting
 
-### Response
+- **Error: Forbidden (403)**: This usually means your fal.ai balance is exhausted. Top up at [fal.ai/dashboard/billing](https://fal.ai/dashboard/billing).
+- **Port already in use**: If port 3002 is busy, change the `PORT` value in your `.env` file.
+- **Protocol "c:" not supported**: This was a path handling bug that has been fixed. Ensure you are using the latest version of `server.js`.
 
-```json
-{
-  "success": true,
-  "outputPath": "output/final-video.mp4",
-  "outputUrl": "/download/final-video.mp4"
-}
-```
-
-### Download Output
-
-```bash
-curl -O http://localhost:3001/download/final-video.mp4
-```
+## Requirements
+- Node.js 18+
+- Internet connection (for AI background removal)

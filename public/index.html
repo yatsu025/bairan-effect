@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Bairan Effect</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #0f0f0f;
+      color: #fff;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .container {
+      background: #1a1a1a;
+      border: 1px solid #2a2a2a;
+      border-radius: 16px;
+      padding: 40px;
+      width: 100%;
+      max-width: 560px;
+    }
+
+    h1 {
+      font-size: 24px;
+      font-weight: 700;
+      margin-bottom: 6px;
+      background: linear-gradient(90deg, #ff6b6b, #ff8e53);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    p.sub {
+      color: #666;
+      font-size: 13px;
+      margin-bottom: 32px;
+    }
+
+    label {
+      display: block;
+      font-size: 13px;
+      color: #aaa;
+      margin-bottom: 8px;
+    }
+
+    .field {
+      margin-bottom: 20px;
+    }
+
+    input[type="text"], input[type="file"] {
+      width: 100%;
+      background: #111;
+      border: 1px solid #2a2a2a;
+      border-radius: 8px;
+      padding: 12px 14px;
+      color: #fff;
+      font-size: 14px;
+      outline: none;
+      transition: border 0.2s;
+    }
+
+    input[type="text"]:focus {
+      border-color: #ff6b6b;
+    }
+
+    input[type="file"] {
+      cursor: pointer;
+      padding: 10px;
+    }
+
+    .or {
+      text-align: center;
+      color: #444;
+      font-size: 12px;
+      margin: 8px 0;
+    }
+
+    button {
+      width: 100%;
+      padding: 14px;
+      background: linear-gradient(90deg, #ff6b6b, #ff8e53);
+      border: none;
+      border-radius: 8px;
+      color: #fff;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 10px;
+      transition: opacity 0.2s;
+    }
+
+    button:hover { opacity: 0.9; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    #status {
+      margin-top: 24px;
+      padding: 16px;
+      border-radius: 8px;
+      font-size: 14px;
+      display: none;
+    }
+
+    #status.info { background: #1e2a3a; border: 1px solid #2a4a6a; color: #7ab3ff; }
+    #status.success { background: #1a2e1a; border: 1px solid #2a5a2a; color: #6fcf6f; }
+    #status.error { background: #2e1a1a; border: 1px solid #5a2a2a; color: #ff7070; }
+
+    .spinner {
+      display: inline-block;
+      width: 14px; height: 14px;
+      border: 2px solid #ffffff44;
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      margin-right: 8px;
+      vertical-align: middle;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .result-link {
+      display: block;
+      margin-top: 10px;
+      color: #ff8e53;
+      word-break: break-all;
+      font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Bairan Effect</h1>
+    <p class="sub">by Yash Srivastava</p>
+
+    <div class="field">
+      <label>Video File</label>
+      <input type="file" id="videoFile" accept="video/mp4,video/quicktime,video/avi" />
+      <div class="or">— or paste URL —</div>
+      <input type="text" id="videoUrl" placeholder="https://example.com/video.mp4" />
+    </div>
+
+    <div class="field">
+      <label>Images (for slideshow)</label>
+      <input type="file" id="imageFiles" accept="image/*" multiple />
+      <div class="or">— or paste image URLs (one per line) —</div>
+      <textarea id="imageUrls" rows="3" placeholder="https://img1.jpg&#10;https://img2.jpg" style="width:100%;background:#111;border:1px solid #2a2a2a;border-radius:8px;padding:12px 14px;color:#fff;font-size:14px;outline:none;resize:vertical;"></textarea>
+    </div>
+
+    <div class="field">
+      <label>User ID (optional)</label>
+      <input type="text" id="userId" placeholder="yash" />
+    </div>
+
+    <button id="processBtn" onclick="processVideo()">Process Video</button>
+
+    <div id="status"></div>
+  </div>
+
+  <script>
+    async function uploadFile(file, endpoint) {
+      const form = new FormData();
+      form.append('file', file);
+      const res = await fetch(endpoint, { method: 'POST', body: form });
+      const data = await res.json();
+      return data.url;
+    }
+
+    function setStatus(type, html) {
+      const el = document.getElementById('status');
+      el.className = type;
+      el.style.display = 'block';
+      el.innerHTML = html;
+    }
+
+    async function processVideo() {
+      const videoFile = document.getElementById('videoFile').files[0];
+      const videoUrl = document.getElementById('videoUrl').value.trim();
+      const imageFiles = document.getElementById('imageFiles').files;
+      const imageUrlsRaw = document.getElementById('imageUrls').value.trim();
+      const userId = document.getElementById('userId').value.trim() || 'yash';
+      const btn = document.getElementById('processBtn');
+
+      if (!videoFile && !videoUrl) {
+        setStatus('error', 'Video file ya URL dono mein se ek zaroori hai.');
+        return;
+      }
+
+      btn.disabled = true;
+      setStatus('info', '<span class="spinner"></span> Processing... thoda wait karo');
+
+      try {
+        let finalVideoPath = videoUrl;
+        let isUrl = true;
+
+        // Upload video file if provided
+        if (videoFile) {
+          setStatus('info', '<span class="spinner"></span> Video upload ho rahi hai...');
+          const form = new FormData();
+          form.append('video', videoFile);
+          const res = await fetch('/upload-video', { method: 'POST', body: form });
+          const data = await res.json();
+          finalVideoPath = data.path;
+          isUrl = false;
+        }
+
+        // Handle images
+        let imageUrls = null;
+        if (imageFiles.length > 0) {
+          setStatus('info', '<span class="spinner"></span> Images upload ho rahi hain...');
+          const form = new FormData();
+          for (const f of imageFiles) form.append('images', f);
+          const res = await fetch('/upload-images', { method: 'POST', body: form });
+          const data = await res.json();
+          imageUrls = data.paths;
+        } else if (imageUrlsRaw) {
+          imageUrls = imageUrlsRaw.split('\n').map(u => u.trim()).filter(Boolean);
+        }
+
+        setStatus('info', '<span class="spinner"></span> Video process ho rahi hai... (2-3 min lag sakte hain)');
+
+        const payload = { videoPath: finalVideoPath, isUrl, userId };
+        if (imageUrls) payload.imageUrls = imageUrls;
+
+        const res = await fetch('/process', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        const result = await res.json();
+
+        if (result.success) {
+          setStatus('success', `✅ Video ready!<br><span class="result-link">Saved: ${result.fileUrl}</span>`);
+        } else {
+          setStatus('error', '❌ Error: ' + result.error);
+        }
+      } catch (err) {
+        setStatus('error', '❌ ' + err.message);
+      } finally {
+        btn.disabled = false;
+      }
+    }
+  </script>
+</body>
+</html>

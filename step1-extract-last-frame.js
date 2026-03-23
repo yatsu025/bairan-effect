@@ -1,9 +1,11 @@
 const ffmpeg = require('fluent-ffmpeg');
+const ffmpegStatic = require('ffmpeg-static');
+const ffprobeStatic = require('ffprobe-static');
 const path = require('path');
 const fs = require('fs');
 
-ffmpeg.setFfmpegPath('ffmpeg');
-ffmpeg.setFfprobePath('ffprobe');
+ffmpeg.setFfmpegPath(ffmpegStatic);
+ffmpeg.setFfprobePath(ffprobeStatic.path);
 
 const workDir = process.argv[2] || '.';
 const INPUT_VIDEO = path.join(workDir, 'main-video.MP4');
